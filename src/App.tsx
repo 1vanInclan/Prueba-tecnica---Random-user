@@ -10,6 +10,10 @@ function App() {
   const [sorting, setSorting] = useState<SortBy>(SortBy.NONE)
   const [filterCountry, setFilterCountry] = useState<string | null>(null)
 
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+
   const originalUsers = useRef<User[]>([])
   
   const toggleColors = () => {
@@ -35,16 +39,29 @@ function App() {
   }
 
   useEffect(() => {
-    fetch('https://randomuser.me/api/?results=100')
-      .then(async res => await res.json())
+    setLoading(true)
+    setError(false)
+
+    fetch(`https://randomuser.me/api/?results=10&seed=ivan&page=${currentPage}`)
+      .then(async res => {
+        if (!res.ok) throw new Error('Error en la peticion')
+        return await res.json()
+      })
       .then(res => {
-        setUsers(res.results)
-        originalUsers.current = res.results
+        setUsers(prevUsers => {
+          const newUsers = prevUsers.concat(res.results)
+          originalUsers.current = res.results
+          return newUsers
+        })
       })
       .catch(err => {
+        setError(err)
         console.error(err);
       })
-  }, [])
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [currentPage])
 
 
   const filteredUsers = useMemo(() => {
@@ -57,21 +74,6 @@ function App() {
   },[users, filterCountry])
 
   const sortedUsers = useMemo(() => {
-
-    console.log('calculate sorted users');
-
-    // if(sorting === SortBy.NONE) return filteredUsers
-
-    // const compareProperties: Record<string, (user: User) => any> = {
-    //   [SortBy.COUNTRY]: user => user.location.country,
-    //   [SortBy.NAME]: user => user.name.first,
-    //   [SortBy.LAST]: user => user.name.last,
-    // }
-
-    // return filteredUsers.toSorted((a,b) => {
-    //   const extractProperty = compareProperties[sorting]
-    //   return extractProperty(a).localeCompare(extractProperty(b))
-    // })
 
     if (sorting === SortBy.COUNTRY){
       return filteredUsers.toSorted(
@@ -118,7 +120,17 @@ function App() {
           />
         </header>
         <main>
-          <UsersList changeSorting={handleChangeSort} deleteUser={handleDelete} showColors = {showColors} users={sortedUsers}/>
+
+          {users.length > 0 && <UsersList changeSorting={handleChangeSort} deleteUser={handleDelete} showColors = {showColors} users={sortedUsers}/>}
+
+          {loading && <strong>Cargando...</strong>}
+
+          {!loading && error && <p>Ha habido un error</p>}
+
+          {!loading && !error && users.length === 0 && <p>No hay usuarios</p>}
+
+          {!loading && !error && <button onClick={() => setCurrentPage(currentPage+1)}>Cargar mas resultados</button>}
+          
         </main>
     </div>
   )
